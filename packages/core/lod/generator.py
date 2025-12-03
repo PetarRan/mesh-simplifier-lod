@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 from copy import deepcopy
 
-from ..qem_simplifier import QEMSimplifier
+from qem_simplifier import QEMSimplifier
 
 
 def generate_lods(

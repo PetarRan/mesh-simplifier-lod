@@ -42,7 +42,10 @@ class QEMSimplifier:
 
         print(f"done: {collapses} collapses, {current} faces")
 
-        self.mesh.remove_degenerate_faces()
+        # remove degenerate faces and unused vertices
+        # create new mesh with only non-degenerate faces
+        valid_faces = self.mesh.faces[self.mesh.nondegenerate_faces()]
+        self.mesh = trimesh.Trimesh(vertices=self.mesh.vertices, faces=valid_faces, process=False)
         self.mesh.remove_unreferenced_vertices()
 
         return self.mesh

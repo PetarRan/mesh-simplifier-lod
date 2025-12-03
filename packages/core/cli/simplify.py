@@ -4,10 +4,10 @@
 import argparse
 from pathlib import Path
 
-from ..preprocessing import load_mesh
-from ..rendering import OffscreenRenderer
-from ..ai_importance import SaliencyExtractor, project_importance_to_vertices
-from ..lod import generate_lods, compute_lod_metrics
+from preprocessing import load_mesh
+from rendering import OffscreenRenderer
+from ai_importance import SaliencyExtractor, project_importance_to_vertices
+from lod import generate_lods, compute_lod_metrics
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
 
     # benchmark mode
     if args.benchmark:
-        from ..benchmarks import run_benchmark
+        from benchmarks import run_benchmark
         ratios = [float(r) for r in args.ratios.split(",")]
         run_benchmark(args.input, args.out, ratios=ratios, alpha=args.alpha)
         return
@@ -96,7 +96,7 @@ def main():
 
         # export heatmap if requested
         if args.export_heatmap:
-            from ..visualization import export_heatmap
+            from visualization import export_heatmap
 
             print("\n=== exporting heatmap ===")
             heatmap_path = Path(args.out) / "importance_heatmap"
@@ -104,14 +104,14 @@ def main():
 
     # compare mode
     if args.compare:
-        from ..benchmarks import compare_qem_vs_ai
+        from benchmarks import compare_qem_vs_ai
 
         result = compare_qem_vs_ai(
             mesh, target_ratio=ratios[0], alpha=args.alpha, model=args.model)
 
         # save comparison renders
-        from ..visualization import render_comparison
-        from ..qem_simplifier import QEMSimplifier
+        from visualization import render_comparison
+        from qem_simplifier import QEMSimplifier
 
         mesh_qem = QEMSimplifier(mesh, importance=None).simplify(ratios[0])
         mesh_ai = QEMSimplifier(

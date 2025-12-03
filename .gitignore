@@ -33,6 +33,9 @@ ENV/
 *.swo
 *~
 
+# test input
+test*/
+
 # output
 output/
 lods/
