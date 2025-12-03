@@ -1,0 +1,20 @@
+[project]
+name = "ai-lod-benchmarks"
+version = "0.1.0"
+description = "benchmark suite for ai-lod mesh simplification"
+authors = [{name = "pran"}]
+requires-python = ">=3.9"
+dependencies = [
+    "ai-lod-core",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"

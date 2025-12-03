@@ -1,20 +1,16 @@
 import time
 import json
 from pathlib import Path
-from copy import deepcopy
 
-from ..preprocessing import load_mesh
-from ..rendering import OffscreenRenderer
-from ..ai_importance import SaliencyExtractor, project_importance_to_vertices
-from ..qem_simplifier import QEMSimplifier
-from ..evaluation import compare_meshes, mesh_metrics
+from core.preprocessing import load_mesh
+from core.rendering import OffscreenRenderer
+from core.ai_importance import SaliencyExtractor, project_importance_to_vertices
+from core.qem_simplifier import QEMSimplifier
+from core.evaluation import compare_meshes, mesh_metrics
 
 
 def compare_qem_vs_ai(mesh, target_ratio=0.2, alpha=1.0, model="facebook/dinov2-small"):
-    """
-    compare standard qem vs ai-modulated qem
-    returns comparison dict
-    """
+    """compare standard qem vs ai-modulated qem"""
     print(f"\n=== comparing qem vs ai-qem at {target_ratio:.0%} ===\n")
 
     # standard qem
@@ -29,7 +25,6 @@ def compare_qem_vs_ai(mesh, target_ratio=0.2, alpha=1.0, model="facebook/dinov2-
     print("\nrunning ai-modulated qem...")
     t0 = time.time()
 
-    # extract importance
     renderer = OffscreenRenderer(resolution=256)
     views = renderer.render_views(mesh, num_views=6)
     extractor = SaliencyExtractor(model_name=model)
@@ -60,11 +55,7 @@ def compare_qem_vs_ai(mesh, target_ratio=0.2, alpha=1.0, model="facebook/dinov2-
 
 
 def run_benchmark(mesh_path, output_dir, ratios=None, alpha=1.0):
-    """
-    run full benchmark on a mesh
-    tests multiple reduction ratios
-    saves results to json
-    """
+    """run full benchmark on a mesh"""
     if ratios is None:
         ratios = [0.5, 0.2, 0.05]
 
@@ -75,7 +66,6 @@ def run_benchmark(mesh_path, output_dir, ratios=None, alpha=1.0):
     print(f"benchmark: {mesh_path}")
     print(f"{'='*60}")
 
-    # load mesh
     mesh = load_mesh(mesh_path)
     print(f"\nloaded: {len(mesh.vertices)} verts, {len(mesh.faces)} faces")
 
@@ -86,12 +76,10 @@ def run_benchmark(mesh_path, output_dir, ratios=None, alpha=1.0):
         "comparisons": [],
     }
 
-    # run comparisons for each ratio
     for ratio in ratios:
         comparison = compare_qem_vs_ai(mesh, target_ratio=ratio, alpha=alpha)
         results["comparisons"].append(comparison)
 
-    # save results
     results_path = output_dir / "benchmark_results.json"
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)

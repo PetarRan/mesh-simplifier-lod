@@ -1,31 +1,8 @@
-[project]
-name = "ai-lod"
-version = "0.1.0"
-description = "hybrid lod simplification with qem + ai importance"
-authors = [{name = "pran"}]
-requires-python = ">=3.9"
-dependencies = [
-    "trimesh>=4.0.0",
-    "numpy>=1.24.0",
-    "scipy>=1.11.0",
-    "pyrender>=0.1.45",
-    "pyglet<2",
-    "torch>=2.0.0",
-    "transformers>=4.35.0",
-    "pillow>=10.0.0",
-    "tqdm>=4.65.0",
-    "matplotlib>=3.7.0",
-]
+[tool.uv.workspace]
+members = ["packages/*"]
 
-[project.scripts]
-ai-lod = "ai_lod.cli.simplify:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[dependency-groups]
-dev = []
+[tool.uv.sources]
+ai-lod-core = { workspace = true }
 
 [tool.black]
 line-length = 88
