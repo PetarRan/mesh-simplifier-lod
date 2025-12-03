@@ -99,11 +99,3 @@ def run_benchmark(mesh_path, output_dir, ratios=None, alpha=1.0):
     print(f"\n✓ benchmark complete, saved to {results_path}")
 
     return results
-
-Add benchmarking and evaluation modules for mesh simplification
-
-- Implemented `compare_qem_vs_ai` function to compare standard QEM and AI-modulated QEM on a given mesh.
-- Developed `run_benchmark` function to execute benchmarks across multiple reduction ratios and save results to JSON.
-- Created evaluation metrics including Hausdorff distance and mesh metrics in `metrics.py`.
-- Added visualization capabilities for importance heatmaps and mesh comparisons.
-- Established module structure for benchmarks, evaluation, and visualization with appropriate imports and exports.
