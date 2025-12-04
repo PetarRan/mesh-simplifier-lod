@@ -22,12 +22,13 @@ class QEMSimplifier:
     def simplify(self, target_ratio=0.5):
         """simplify to target_ratio of original faces"""
         target = int(len(self.original_mesh.faces) * target_ratio)
-        current = len(self.mesh.faces)
 
-        print(f"simplifying {current} → {target} faces...")
+        print(f"simplifying {len(self.mesh.faces)} → {target} faces...")
 
         collapses = 0
-        while current > target and self.heap:
+        current = len(self.mesh.faces)  # Initial estimate
+
+        while self.heap:
             cost, edge_key, v1, v2, new_pos = heapq.heappop(self.heap)
 
             if not self._valid_edge(v1, v2):
@@ -35,12 +36,19 @@ class QEMSimplifier:
 
             self._collapse(v1, v2, new_pos)
             collapses += 1
-            current = len(self.mesh.faces)
 
+            # Only count non-degenerate faces every 100 iterations (expensive operation)
             if collapses % 100 == 0:
+                current = np.sum(self.mesh.nondegenerate_faces())
                 print(f"  {collapses} collapses, {current} faces left")
 
-        print(f"done: {collapses} collapses, {current} faces")
+                # Check if we've hit target
+                if current <= target:
+                    break
+
+        # Final count
+        current = np.sum(self.mesh.nondegenerate_faces())
+        print(f"done: {collapses} collapses, {current} faces left")
 
         # remove degenerate faces and unused vertices
         # create new mesh with only non-degenerate faces
