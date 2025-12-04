@@ -3,12 +3,12 @@ import time
 from pathlib import Path
 import shutil
 
-from core.preprocessing import load_mesh
-from core.rendering import OffscreenRenderer
-from core.ai_importance import SaliencyExtractor, project_importance_to_vertices
-from core.qem_simplifier import QEMSimplifier
-from core.evaluation import compare_meshes
-from core.visualization import paint_importance_heatmap
+from preprocessing import load_mesh
+from rendering import OffscreenRenderer
+from ai_importance import SaliencyExtractor, project_importance_to_vertices
+from qem_simplifier import QEMSimplifier
+from evaluation import compare_meshes
+from visualization import paint_importance_heatmap
 
 
 class SimplificationPipeline:

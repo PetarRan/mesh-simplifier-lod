@@ -11,7 +11,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 import numpy as np
 
-from .utils import SimplificationPipeline
+from utils import SimplificationPipeline
 
 # page config
 st.set_page_config(

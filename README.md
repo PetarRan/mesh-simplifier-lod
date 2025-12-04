@@ -2,7 +2,8 @@
 
 hybrid mesh simplification with qem + ai importance weighting
 
-<!-- [side by side screenshot comparsion here, coming ina bit] -->
+![LOD Comparison](assets/lod_comparison.png)
+_Progressive LOD generation - 4 levels from 69K to 11K faces with technical metrics_
 
 ## monorepo structure
 
@@ -21,7 +22,8 @@ packages/
 - importance heatmap visualization
 - interactive web demo
 
-<!-- [heatmap visualization for importance maps] -->
+![AI Importance Heatmap](assets/lod_importance_heatmap.png)
+_AI-detected importance weights visualized across LOD levels - hot colors (yellow) = preserved, cool colors (purple) = simplified_
 
 ## installation
 
@@ -39,13 +41,13 @@ uv sync
 
 ```bash
 # simplify with ai
-uv run --package ai-lod-core ai-lod -i mesh.obj -o output/
+uv run ai-lod -i mesh.obj -o output/
 
 # compare qem vs ai
-uv run --package ai-lod-core ai-lod -i mesh.obj -o output/ --compare
+uv run ai-lod -i mesh.obj -o output/ --compare
 
 # export heatmap
-uv run --package ai-lod-core ai-lod -i mesh.obj -o output/ --export-heatmap
+uv run ai-lod -i mesh.obj -o output/ --export-heatmap
 ```
 
 <!-- [cli output screenshot for metrics] -->
@@ -53,7 +55,7 @@ uv run --package ai-lod-core ai-lod -i mesh.obj -o output/ --export-heatmap
 ### web demo
 
 ```bash
-uv run --package ai-lod-webapp streamlit run packages/webapp/app.py
+uv run streamlit run packages/webapp/app.py
 ```
 
 open `http://localhost:8501` in your browser.
@@ -80,7 +82,30 @@ lods = generate_lods(mesh, importance=importance, target_ratios=[0.5, 0.2, 0.05]
 4. qem collapse with modulated cost: `qem × (1 + α × importance)`
 5. generate progressive lods
 
-<!-- [main diagram flow] -->
+```mermaid
+graph LR
+    A[Input Mesh] --> B[Multi-View Renderer]
+    B --> C[6 Orbital Views]
+    C --> D[DINOv2 Saliency Extractor]
+    D --> E[2D Saliency Maps]
+    E --> F[3D Projection + Depth Test]
+    F --> G[Vertex Importance Weights]
+    G --> H[QEM Simplifier]
+    A --> H
+    H --> I[Edge Collapse with<br/>Cost = QEM × 1 + α × importance]
+    I --> J[LOD0: 100%]
+    I --> K[LOD1: 50%]
+    I --> L[LOD2: 20%]
+    I --> M[LOD3: 5%]
+
+    style A fill:#4a9eff
+    style G fill:#ff6b9d
+    style H fill:#ffd93d
+    style J fill:#6bcf7f
+    style K fill:#6bcf7f
+    style L fill:#6bcf7f
+    style M fill:#6bcf7f
+```
 
 ## license
 

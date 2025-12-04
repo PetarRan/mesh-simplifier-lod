@@ -94,6 +94,13 @@ def main():
 
         renderer.cleanup()
 
+        # save importance data for visualization
+        import numpy as np
+        Path(args.out).mkdir(parents=True, exist_ok=True)
+        importance_path = Path(args.out) / "importance.npy"
+        np.save(importance_path, importance)
+        print(f"  saved importance data: {importance_path}")
+
         # export heatmap if requested
         if args.export_heatmap:
             from visualization import export_heatmap
