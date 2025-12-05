@@ -16,7 +16,6 @@ from utils import SimplificationPipeline
 # page config
 st.set_page_config(
     page_title="AI-LOD Mesh Simplifier",
-    page_icon="🎲",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -108,7 +107,7 @@ def mesh_with_colors(mesh):
 
 
 # sidebar controls
-st.sidebar.title("🎲 AI-LOD Simplifier")
+st.sidebar.title("AI-LOD Simplifier")
 st.sidebar.markdown("upload a mesh and generate lods with ai-guided simplification")
 
 # file upload
@@ -132,21 +131,21 @@ alpha = st.sidebar.slider(
 )
 
 st.sidebar.subheader("lod targets")
-ratio_1 = st.sidebar.slider("lod1 reduction", 0.1, 0.9, 0.5, 0.05, format="%.0f%%", help="50% = half faces")
-ratio_2 = st.sidebar.slider("lod2 reduction", 0.1, 0.9, 0.2, 0.05, format="%.0f%%")
-ratio_3 = st.sidebar.slider("lod3 reduction", 0.01, 0.5, 0.05, 0.01, format="%.0f%%")
+ratio_1 = st.sidebar.slider("lod1 reduction", 0.1, 0.9, 0.5, 0.05, format="%.2f", help="0.50 = half faces")
+ratio_2 = st.sidebar.slider("lod2 reduction", 0.1, 0.9, 0.2, 0.05, format="%.2f")
+ratio_3 = st.sidebar.slider("lod3 reduction", 0.01, 0.5, 0.05, 0.01, format="%.2f")
 
 ratios = [ratio_1, ratio_2, ratio_3]
 
 # run button
-run_button = st.sidebar.button("🚀 generate lods", type="primary", disabled=uploaded_file is None)
+run_button = st.sidebar.button("generate lods", type="primary", disabled=uploaded_file is None)
 
 # main area
 st.title("AI-Guided LOD Mesh Simplification")
 st.markdown("hybrid qem + ai importance for perceptually-aware mesh reduction")
 
 if uploaded_file is None:
-    st.info("👈 upload a mesh to get started")
+    st.info("upload a mesh to get started")
     st.stop()
 
 # save uploaded file
@@ -160,7 +159,7 @@ if run_button:
         try:
             results = st.session_state.pipeline.run(mesh_path, ratios, alpha=alpha, use_ai=use_ai)
             st.session_state.results = results
-            st.success(f"✓ completed in {results['elapsed']:.1f}s")
+            st.success(f"completed in {results['elapsed']:.1f}s")
         except Exception as e:
             st.error(f"error: {e}")
             st.stop()
@@ -173,7 +172,7 @@ if st.session_state.results is None:
 results = st.session_state.results
 
 # tabs for different views
-tab1, tab2, tab3 = st.tabs(["📊 lod comparison", "🎨 importance heatmap", "📈 metrics"])
+tab1, tab2, tab3 = st.tabs(["lod comparison", "importance heatmap", "metrics"])
 
 with tab1:
     st.subheader("lod comparison")
@@ -193,7 +192,7 @@ with tab1:
             if i > 0:
                 with open(results["lod_paths"][i], "rb") as f:
                     st.download_button(
-                        f"⬇️ {label}.obj",
+                        f"download {label}.obj",
                         f,
                         file_name=f"{label}.obj",
                         mime="application/octet-stream",
@@ -211,8 +210,8 @@ with tab2:
 
         with col2:
             st.markdown("**color scale**")
-            st.markdown("- 🔴 red: high importance")
-            st.markdown("- 🔵 blue: low importance")
+            st.markdown("- red: high importance")
+            st.markdown("- blue: low importance")
             st.markdown("")
             st.markdown("ai model preserves high-importance regions during simplification")
 
@@ -221,7 +220,7 @@ with tab2:
             if heatmap_path.exists():
                 with open(heatmap_path, "rb") as f:
                     st.download_button(
-                        "⬇️ download heatmap.obj",
+                        "download heatmap.obj",
                         f,
                         file_name="heatmap.obj",
                         mime="application/octet-stream",
