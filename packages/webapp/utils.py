@@ -43,12 +43,27 @@ class SimplificationPipeline:
         if not use_ai:
             cmd.append("--no-ai")
 
-        # Run CLI as subprocess
+        # Run CLI as subprocess with real-time output
         print(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
 
-        if result.returncode != 0:
-            raise RuntimeError(f"CLI failed: {result.stderr}")
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        # Collect output
+        output_lines = []
+        for line in process.stdout:
+            output_lines.append(line)
+            print(line.strip())  # Print to streamlit console
+
+        process.wait()
+
+        if process.returncode != 0:
+            raise RuntimeError(f"CLI failed: {''.join(output_lines)}")
 
         # Load results from output directory
         lods = []
@@ -84,7 +99,8 @@ class SimplificationPipeline:
                         "num_faces": len(lod.faces),
                     },
                     "face_ratio": len(lod.faces) / len(original.faces),
-                    "hausdorff": {"hausdorff": 0.0, "rms": 0.0},  # CLI doesn't compute this yet
+                    # CLI doesn't compute this yet
+                    "hausdorff": {"hausdorff": 0.0, "rms": 0.0},
                 }
                 comparisons.append(comp)
 

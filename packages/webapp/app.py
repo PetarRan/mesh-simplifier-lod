@@ -6,12 +6,10 @@ run: streamlit run ai_lod/webapp/app.py
 
 import streamlit as st
 import tempfile
-import pandas as pd
 from pathlib import Path
-import plotly.graph_objects as go
-import numpy as np
 
 from utils import SimplificationPipeline
+from ui_components import render_lod_comparison_tab, render_heatmap_tab, render_metrics_tab
 
 # page config
 st.set_page_config(
@@ -20,6 +18,110 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# kind of sucks but CSS for better layout
+st.markdown("""
+<style>
+    /* Remove top padding */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 0rem;
+        max-height: 100vh;
+    }
+
+    /* Make main content area use full height */
+    .main {
+        height: 100vh;
+        overflow-y: auto;
+    }
+
+    /* Sidebar - ultra compact */
+    [data-testid="stSidebar"] {
+        max-height: 100vh;
+        overflow-y: auto;
+    }
+
+    [data-testid="stSidebar"] .block-container {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 0.5rem;
+    }
+
+    /* Minimal spacing for all sidebar elements */
+    [data-testid="stSidebar"] h1 {
+        font-size: 1.3rem;
+        margin-top: 0;
+        margin-bottom: 0.3rem;
+        padding-top: 0;
+    }
+
+    [data-testid="stSidebar"] h2 {
+        font-size: 1.1rem;
+        margin-top: 0.3rem;
+        margin-bottom: 0.2rem;
+    }
+
+    [data-testid="stSidebar"] h3 {
+        font-size: 0.95rem;
+        margin-top: 0.2rem;
+        margin-bottom: 0.1rem;
+    }
+
+    [data-testid="stSidebar"] .stMarkdown {
+        margin-bottom: 0.2rem;
+    }
+
+    [data-testid="stSidebar"] p {
+        margin-bottom: 0.2rem;
+    }
+
+    /* Ultra compact sliders */
+    [data-testid="stSidebar"] .stSlider {
+        margin-top: 0;
+        margin-bottom: 0.3rem;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    [data-testid="stSidebar"] .stSlider label {
+        margin-bottom: 0.1rem;
+    }
+
+    /* Compact toggle */
+    [data-testid="stSidebar"] .stCheckbox {
+        margin-bottom: 0.3rem;
+    }
+
+    /* Compact file uploader */
+    [data-testid="stSidebar"] .stFileUploader {
+        margin-bottom: 0.3rem;
+    }
+
+    /* Bigger buttons */
+    .stButton > button {
+        width: 100%;
+        height: 2.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+    }
+
+    /* Reduce title spacing */
+    h1 {
+        margin-top: 0;
+        padding-top: 0;
+    }
+
+    /* Remove extra divider spacing */
+    [data-testid="stSidebar"] hr {
+        margin-top: 0.3rem;
+        margin-bottom: 0.3rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # init session state
 if "pipeline" not in st.session_state:
     st.session_state.pipeline = SimplificationPipeline()
@@ -27,118 +129,38 @@ if "results" not in st.session_state:
     st.session_state.results = None
 
 
-def mesh_to_plotly(mesh, color="lightblue", opacity=1.0):
-    """convert trimesh to plotly mesh3d"""
-    vertices = mesh.vertices
-    faces = mesh.faces
-
-    fig = go.Figure(
-        data=[
-            go.Mesh3d(
-                x=vertices[:, 0],
-                y=vertices[:, 1],
-                z=vertices[:, 2],
-                i=faces[:, 0],
-                j=faces[:, 1],
-                k=faces[:, 2],
-                color=color,
-                opacity=opacity,
-                flatshading=True,
-                lighting=dict(ambient=0.5, diffuse=0.8, specular=0.2),
-            )
-        ]
-    )
-
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
-            zaxis=dict(visible=False),
-            aspectmode="data",
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=400,
-    )
-
-    return fig
-
-
-def mesh_with_colors(mesh):
-    """render mesh with vertex colors (for heatmap)"""
-    vertices = mesh.vertices
-    faces = mesh.faces
-
-    # get vertex colors
-    if hasattr(mesh.visual, "vertex_colors"):
-        colors = mesh.visual.vertex_colors[:, :3] / 255.0
-        # convert to vertex color for plotly
-        intensities = colors.mean(axis=1)
-    else:
-        intensities = None
-
-    fig = go.Figure(
-        data=[
-            go.Mesh3d(
-                x=vertices[:, 0],
-                y=vertices[:, 1],
-                z=vertices[:, 2],
-                i=faces[:, 0],
-                j=faces[:, 1],
-                k=faces[:, 2],
-                intensity=intensities,
-                colorscale="Viridis",
-                flatshading=True,
-            )
-        ]
-    )
-
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(visible=False),
-            yaxis=dict(visible=False),
-            zaxis=dict(visible=False),
-            aspectmode="data",
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=400,
-    )
-
-    return fig
-
-
 # sidebar controls
 st.sidebar.title("AI-LOD Simplifier")
-st.sidebar.markdown("upload a mesh and generate lods with ai-guided simplification")
 
 # file upload
 uploaded_file = st.sidebar.file_uploader(
-    "upload mesh", type=["obj", "ply", "gltf", "glb"], help="upload obj, ply, or gltf mesh"
+    "upload mesh", type=["obj", "ply", "gltf", "glb"]
 )
 
 # parameters
 st.sidebar.subheader("parameters")
 
-use_ai = st.sidebar.checkbox("enable ai importance", value=True, help="use ai saliency for importance weighting")
+use_ai = st.sidebar.toggle("Enable AI Importance", value=True, key="ai_toggle")
 
 alpha = st.sidebar.slider(
-    "alpha (ai influence)",
+    "alpha",
     min_value=0.0,
     max_value=5.0,
     value=1.0,
     step=0.1,
-    help="higher = more preservation of important regions",
     disabled=not use_ai,
 )
 
 st.sidebar.subheader("lod targets")
-ratio_1 = st.sidebar.slider("lod1 reduction", 0.1, 0.9, 0.5, 0.05, format="%.2f", help="0.50 = half faces")
-ratio_2 = st.sidebar.slider("lod2 reduction", 0.1, 0.9, 0.2, 0.05, format="%.2f")
-ratio_3 = st.sidebar.slider("lod3 reduction", 0.01, 0.5, 0.05, 0.01, format="%.2f")
+ratio_1 = st.sidebar.slider("lod1", 0.0, 1.0, 0.5, 0.05, format="%.2f")
+ratio_2 = st.sidebar.slider("lod2", 0.0, 1.0, 0.2, 0.05, format="%.2f")
+ratio_3 = st.sidebar.slider("lod3", 0.0, 1.0, 0.05, 0.01, format="%.2f")
 
 ratios = [ratio_1, ratio_2, ratio_3]
 
 # run button
-run_button = st.sidebar.button("generate lods", type="primary", disabled=uploaded_file is None)
+run_button = st.sidebar.button(
+    "generate lods", type="primary", disabled=uploaded_file is None)
 
 # main area
 st.title("AI-Guided LOD Mesh Simplification")
@@ -155,14 +177,45 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).s
 
 # run pipeline
 if run_button:
-    with st.spinner("running simplification pipeline..."):
-        try:
-            results = st.session_state.pipeline.run(mesh_path, ratios, alpha=alpha, use_ai=use_ai)
-            st.session_state.results = results
-            st.success(f"completed in {results['elapsed']:.1f}s")
-        except Exception as e:
-            st.error(f"error: {e}")
-            st.stop()
+    progress_text = st.empty()
+    progress_bar = st.progress(0)
+
+    try:
+        # Show progress steps
+        progress_text.text("Loading mesh...")
+        progress_bar.progress(10)
+
+        progress_text.text("Rendering orbital views...")
+        progress_bar.progress(20)
+
+        progress_text.text("Extracting AI saliency (this may take a while)...")
+        progress_bar.progress(40)
+
+        progress_text.text("Projecting importance to vertices...")
+        progress_bar.progress(60)
+
+        progress_text.text("Generating LODs with QEM simplification...")
+        progress_bar.progress(80)
+
+        # Run the pipeline (this blocks until done)
+        results = st.session_state.pipeline.run(
+            mesh_path, ratios, alpha=alpha, use_ai=use_ai)
+        st.session_state.results = results
+
+        progress_bar.progress(100)
+        progress_text.text("")
+        st.success(f"completed in {results['elapsed']:.1f}s")
+    except Exception as e:
+        progress_text.text("")
+        progress_bar.empty()
+        st.error(f"error: {e}")
+        st.stop()
+    finally:
+        # Clear progress indicators
+        import time
+        time.sleep(1)
+        progress_text.empty()
+        progress_bar.empty()
 
 # display results
 if st.session_state.results is None:
@@ -175,83 +228,13 @@ results = st.session_state.results
 tab1, tab2, tab3 = st.tabs(["lod comparison", "importance heatmap", "metrics"])
 
 with tab1:
-    st.subheader("lod comparison")
-
-    # show lods side by side
-    cols = st.columns(4)
-
-    labels = ["original", "lod1", "lod2", "lod3"]
-    for i, (col, mesh, label) in enumerate(zip(cols, results["lods"], labels)):
-        with col:
-            st.markdown(f"**{label}**")
-            st.markdown(f"`{len(mesh.faces)} faces`")
-            fig = mesh_to_plotly(mesh, color=["lightblue", "lightgreen", "orange", "salmon"][i])
-            st.plotly_chart(fig, use_container_width=True)
-
-            # download link
-            if i > 0:
-                with open(results["lod_paths"][i], "rb") as f:
-                    st.download_button(
-                        f"download {label}.obj",
-                        f,
-                        file_name=f"{label}.obj",
-                        mime="application/octet-stream",
-                    )
+    render_lod_comparison_tab(results)
 
 with tab2:
-    st.subheader("importance heatmap")
-
-    if results["heatmap_mesh"] is not None:
-        col1, col2 = st.columns([2, 1])
-
-        with col1:
-            fig = mesh_with_colors(results["heatmap_mesh"])
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            st.markdown("**color scale**")
-            st.markdown("- red: high importance")
-            st.markdown("- blue: low importance")
-            st.markdown("")
-            st.markdown("ai model preserves high-importance regions during simplification")
-
-            # download heatmap
-            heatmap_path = st.session_state.pipeline.temp_dir / "heatmap.obj"
-            if heatmap_path.exists():
-                with open(heatmap_path, "rb") as f:
-                    st.download_button(
-                        "download heatmap.obj",
-                        f,
-                        file_name="heatmap.obj",
-                        mime="application/octet-stream",
-                    )
-    else:
-        st.info("enable ai importance to see heatmap")
+    render_heatmap_tab(results, st.session_state.pipeline)
 
 with tab3:
-    st.subheader("quality metrics")
-
-    # build metrics table
-    rows = []
-    for i, comp in enumerate(results["comparisons"]):
-        rows.append(
-            {
-                "lod": f"lod{i+1}",
-                "faces": comp["simplified"]["num_vertices"],
-                "vertices": comp["simplified"]["num_vertices"],
-                "reduction": f"{comp['face_ratio']:.1%}",
-                "hausdorff": f"{comp['hausdorff']['hausdorff']:.6f}",
-                "rms_error": f"{comp['hausdorff']['rms']:.6f}",
-            }
-        )
-
-    df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    st.markdown("**metrics explanation:**")
-    st.markdown("- **hausdorff distance**: max geometric error (lower is better)")
-    st.markdown("- **rms error**: root mean square error (lower is better)")
-    st.markdown("- **reduction**: target face count percentage")
+    render_metrics_tab(results)
 
 # footer
 st.sidebar.markdown("---")
