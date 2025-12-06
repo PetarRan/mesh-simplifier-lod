@@ -21,9 +21,17 @@ matplotlib.use('Agg')  # Use non-interactive backend
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "core"))
 
 
-def render_comparison_view(mesh, resolution=800):
+def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
     mesh_centered = mesh.copy()
     mesh_centered.vertices -= mesh_centered.centroid
+
+    # Rotate bunny to stand upright - swap Y and Z, then adjust orientation
+    vertices_rotated = mesh_centered.vertices.copy()
+    # Swap Y and Z to make bunny stand up
+    temp = vertices_rotated[:, 1].copy()
+    vertices_rotated[:, 1] = vertices_rotated[:, 2]
+    vertices_rotated[:, 2] = -temp  # Negative to get correct orientation
+    mesh_centered.vertices = vertices_rotated
     # Create figure for this mesh
     fig = plt.figure(figsize=(resolution/100, resolution/100), dpi=100)
     ax = fig.add_subplot(111, projection='3d')
@@ -32,18 +40,31 @@ def render_comparison_view(mesh, resolution=800):
     vertices = mesh_centered.vertices
     faces = mesh_centered.faces
 
+    # Determine colors
+    if use_vertex_colors and hasattr(mesh_centered.visual, 'vertex_colors'):
+        # Use vertex colors from the mesh (for heatmap)
+        vertex_colors = mesh_centered.visual.vertex_colors[:, :3] / 255.0
+        facecolors = vertex_colors[faces].mean(axis=1)  # Average vertex colors per face
+        edgecolors = 'none'
+    else:
+        # Use light gray with edge lines for better geometry visibility
+        facecolors = (0.85, 0.85, 0.85)
+        edgecolors = (0.3, 0.3, 0.3)
+
     # Create collection of triangles
     poly3d = Poly3DCollection(
         vertices[faces],
-        facecolors='lightgray',
-        edgecolors='none',
-        alpha=0.9,
-        shade=True
+        facecolors=facecolors,
+        edgecolors=edgecolors,
+        linewidths=0.1,
+        alpha=1.0
     )
     ax.add_collection3d(poly3d)
 
-    # Set viewing angle (oblique)
-    ax.view_init(elev=20, azim=45)
+    # Set viewing angle - try different angles for bunny
+    # elev: positive = looking up from below, negative = looking down from above
+    # azim: rotation around vertical axis
+    ax.view_init(elev=20, azim=135)
 
     # Set axis limits
     bounds = mesh_centered.bounds
@@ -65,8 +86,10 @@ def render_comparison_view(mesh, resolution=800):
     # Convert to image
     fig.tight_layout(pad=0)
     fig.canvas.draw()
-    img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # Modern matplotlib uses buffer_rgba() instead of tostring_rgb()
+    buf = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    w, h = fig.canvas.get_width_height()
+    img = buf.reshape((h, w, 4))[:, :, :3]  # Drop alpha channel, keep RGB
 
     plt.close(fig)
 
@@ -145,7 +168,7 @@ def create_comparison_figure(mesh_path, output_dir, ratios=[0.5, 0.2, 0.05]):
 
             # Importance heatmap
             heatmap_mesh = paint_importance_heatmap(mesh, importance)
-            heatmap_img = render_comparison_view(heatmap_mesh)
+            heatmap_img = render_comparison_view(heatmap_mesh, use_vertex_colors=True)
 
             ax = fig.add_subplot(gs[row_idx, 1])
             ax.imshow(heatmap_img)
