@@ -1,0 +1,51 @@
+AI vs Standard QEM Comparison: bun_zipper.ply
+================================================================================
+
+Original Mesh: 69,451 faces, 34,834 vertices
+
+Importance Map Statistics:
+  Min: 0.0000
+  Max: 1.0000
+  Mean: 0.4060
+  Std: 0.1847
+  Coverage: 99.95%
+
+
+LOD Level 1 (Target: 50%):
+--------------------------------------------------------------------------------
+Standard QEM:
+  Faces: 34,706 (49.97%)
+  Vertices: 17,429
+
+AI-Guided QEM (α=1.0):
+  Faces: 34,705 (49.97%)
+  Vertices: 17,430
+
+Difference:
+  Δ Faces: 1
+
+LOD Level 2 (Target: 20%):
+--------------------------------------------------------------------------------
+Standard QEM:
+  Faces: 13,758 (19.81%)
+  Vertices: 6,929
+
+AI-Guided QEM (α=1.0):
+  Faces: 13,753 (19.80%)
+  Vertices: 6,929
+
+Difference:
+  Δ Faces: 5
+
+LOD Level 3 (Target: 5%):
+--------------------------------------------------------------------------------
+Standard QEM:
+  Faces: 11,146 (16.05%)
+  Vertices: 5,614
+
+AI-Guided QEM (α=1.0):
+  Faces: 11,124 (16.02%)
+  Vertices: 5,606
+
+Difference:
+  Δ Faces: 22
