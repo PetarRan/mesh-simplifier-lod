@@ -30,7 +30,7 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
     # Swap Y and Z to make bunny stand up
     temp = vertices_rotated[:, 1].copy()
     vertices_rotated[:, 1] = vertices_rotated[:, 2]
-    vertices_rotated[:, 2] = -temp  # Negative to get correct orientation
+    vertices_rotated[:, 2] = temp
     mesh_centered.vertices = vertices_rotated
     # Create figure for this mesh
     fig = plt.figure(figsize=(resolution/100, resolution/100), dpi=100)
@@ -44,7 +44,8 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
     if use_vertex_colors and hasattr(mesh_centered.visual, 'vertex_colors'):
         # Use vertex colors from the mesh (for heatmap)
         vertex_colors = mesh_centered.visual.vertex_colors[:, :3] / 255.0
-        facecolors = vertex_colors[faces].mean(axis=1)  # Average vertex colors per face
+        facecolors = vertex_colors[faces].mean(
+            axis=1)  # Average vertex colors per face
         edgecolors = 'none'
     else:
         # Use light gray with edge lines for better geometry visibility
@@ -168,7 +169,8 @@ def create_comparison_figure(mesh_path, output_dir, ratios=[0.5, 0.2, 0.05]):
 
             # Importance heatmap
             heatmap_mesh = paint_importance_heatmap(mesh, importance)
-            heatmap_img = render_comparison_view(heatmap_mesh, use_vertex_colors=True)
+            heatmap_img = render_comparison_view(
+                heatmap_mesh, use_vertex_colors=True)
 
             ax = fig.add_subplot(gs[row_idx, 1])
             ax.imshow(heatmap_img)

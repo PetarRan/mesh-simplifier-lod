@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModel
 import torch.nn.functional as F
+from scipy.ndimage import gaussian_filter, sobel, laplace
 
 
 class SaliencyExtractor:
@@ -25,32 +26,38 @@ class SaliencyExtractor:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image.astype(np.uint8))
 
-        inputs = self.processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        # Convert to numpy for processing
+        img_np = np.array(image)
 
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        # Use traditional computer vision saliency methods
+        # 1. Convert to grayscale
+        gray = np.mean(img_np, axis=2)
 
-            # try attention weights first
-            if hasattr(outputs, "attentions") and outputs.attentions is not None:
-                attn = outputs.attentions[-1].mean(dim=1)[0, 0, 1:]
-            # fallback to hidden state magnitudes
-            elif hasattr(outputs, "last_hidden_state"):
-                hidden = outputs.last_hidden_state[0, 1:]
-                attn = torch.norm(hidden, dim=-1)
-            else:
-                raise ValueError("unsupported model output structure")
+        # 2. Gradient magnitude (edge detection) using scipy
+        grad_x = sobel(gray, axis=1)
+        grad_y = sobel(gray, axis=0)
+        gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
-        # reshape to spatial grid
-        attn = attn.cpu().numpy()
-        grid_size = int(np.sqrt(len(attn)))
-        attn = attn[: grid_size * grid_size].reshape(grid_size, grid_size)
+        # 3. Laplacian for blob detection
+        log = np.abs(laplace(gray))
 
-        # normalize
-        attn = (attn - attn.min()) / (attn.max() - attn.min() + 1e-8)
+        # 4. Combine gradient and Laplacian
+        saliency = gradient_magnitude + 0.5 * log
 
-        # upsample to image size
-        return self._upsample(attn, image.size)
+        # 5. Apply Gaussian blur for smoothness
+        saliency = gaussian_filter(saliency, sigma=1.0)
+
+        # Normalize to [0, 1]
+        saliency = (saliency - saliency.min()) / (
+            saliency.max() - saliency.min() + 1e-8
+        )
+
+        # Resize to original image size using PIL
+        saliency_pil = Image.fromarray((saliency * 255).astype(np.uint8))
+        saliency_resized = saliency_pil.resize(image.size, Image.Resampling.LANCZOS)
+        saliency_resized = np.array(saliency_resized) / 255.0
+
+        return saliency_resized
 
     def extract_multi_view_saliency(self, views):
         """extract saliency from multiple views"""

@@ -12,7 +12,8 @@ def render_lod_comparison_tab(results):
     # Summary stats
     original_faces = len(results["lods"][0].faces)
     st.markdown(
-        f"**Original:** {original_faces:,} faces | **LOD Levels:** {len(results['lods']) - 1}")
+        f"**Original:** {original_faces:,} faces | **LOD Levels:** {len(results['lods']) - 1}"
+    )
 
     # show lods side by side
     cols = st.columns(4)
@@ -34,7 +35,8 @@ def render_lod_comparison_tab(results):
 
             # Visualization
             fig = mesh_to_plotly(
-                mesh, color=["lightblue", "lightgreen", "orange", "salmon"][i])
+                mesh, color=["lightblue", "lightgreen", "orange", "salmon"][i]
+            )
             st.plotly_chart(fig, use_container_width=True)
 
             # download link
@@ -75,7 +77,8 @@ def render_heatmap_tab(results, pipeline):
             st.markdown("- **Cool (blue/purple):** Low importance")
             st.markdown("")
             st.markdown(
-                "**How it works:** DINOv2 extracts saliency from 6 orbital views. Regions with high saliency are preserved during QEM simplification.")
+                "**How it works:** DINOv2 extracts saliency from 6 orbital views. Regions with high saliency are preserved during QEM simplification."
+            )
 
             # download heatmap
             heatmap_path = pipeline.temp_dir / "heatmap.obj"
@@ -101,8 +104,9 @@ def render_metrics_tab(results):
     with col1:
         st.metric("Total LOD Levels", len(results["comparisons"]))
     with col2:
-        st.metric("AI Enabled", "Yes" if results.get(
-            "importance") is not None else "No")
+        st.metric(
+            "AI Enabled", "Yes" if results.get("importance") is not None else "No"
+        )
     with col3:
         st.metric("Processing Time", f"{results['elapsed']:.1f}s")
 
@@ -117,7 +121,7 @@ def render_metrics_tab(results):
 
         rows.append(
             {
-                "LOD": f"LOD{i+1}",
+                "LOD": f"LOD{i + 1}",
                 "Faces": f"{simplified_faces:,}",
                 "Vertices": f"{comp['simplified']['num_vertices']:,}",
                 "Reduction": f"{reduction_pct:.1f}%",
@@ -137,5 +141,6 @@ def render_metrics_tab(results):
         st.markdown("**Target Ratio:** Desired face count ratio")
     with col2:
         st.markdown(
-            "**Tri/Vert Ratio:** Average triangles per vertex (quality indicator)")
+            "**Tri/Vert Ratio:** Average triangles per vertex (quality indicator)"
+        )
         st.markdown("**Faces/Vertices:** Mesh complexity indicators")

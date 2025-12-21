@@ -33,16 +33,26 @@ class OffscreenRenderer:
 
         views = []
 
-        # orbit around mesh (now centered at origin)
+        # orbit around mesh (now centered at origin) with better face coverage
         for i in range(num_views):
             angle = 2 * np.pi * i / num_views
-
-            # Rotate the base camera pose (which points down -Z) around Y axis
-            # Base pose: camera at (0, 0, distance) looking at origin
+            
+            # Add elevation variation to capture face better
+            elevation = np.sin(angle * 2) * 0.3  # Vary elevation between -0.3 and 0.3
+            
+            # Rotate the base camera pose around Y axis with elevation
             rotation_y = np.array([
                 [np.cos(angle), 0, -np.sin(angle), 0],
                 [0, 1, 0, 0],
                 [np.sin(angle), 0, np.cos(angle), 0],
+                [0, 0, 0, 1]
+            ])
+            
+            # Add elevation rotation around X axis
+            rotation_x = np.array([
+                [1, 0, 0, 0],
+                [0, np.cos(elevation), -np.sin(elevation), 0],
+                [0, np.sin(elevation), np.cos(elevation), 0],
                 [0, 0, 0, 1]
             ])
 
@@ -50,8 +60,8 @@ class OffscreenRenderer:
             base_pose = np.eye(4)
             base_pose[2, 3] = distance
 
-            # Rotate base pose around origin
-            cam_pose = rotation_y @ base_pose
+            # Apply rotations: first elevation, then orbit
+            cam_pose = rotation_y @ rotation_x @ base_pose
 
             cam_node = scene.add(camera, pose=cam_pose)
 

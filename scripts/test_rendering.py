@@ -3,7 +3,6 @@
 Quick test of matplotlib rendering to verify it works before running full pipeline
 """
 
-from preprocessing import load_mesh
 import sys
 from pathlib import Path
 import numpy as np
@@ -12,10 +11,16 @@ import matplotlib
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import trimesh
 
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 
 # Add packages to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "core"))
+
+from preprocessing import load_mesh
+from ai_importance import SaliencyExtractor
+from rendering import OffscreenRenderer
+from ai_importance.projection import project_importance_to_vertices
+from visualization.heatmap import paint_importance_heatmap
 
 
 def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
@@ -31,19 +36,18 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
     vertices_rotated[:, 2] = temp  # Negative to get correct orientation
     mesh_centered.vertices = vertices_rotated
 
-    fig = plt.figure(figsize=(resolution/100, resolution/100), dpi=100)
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(resolution / 100, resolution / 100), dpi=100)
+    ax = fig.add_subplot(111, projection="3d")
 
     vertices = mesh_centered.vertices
     faces = mesh_centered.faces
 
     # Determine colors
-    if use_vertex_colors and hasattr(mesh_centered.visual, 'vertex_colors'):
+    if use_vertex_colors and hasattr(mesh_centered.visual, "vertex_colors"):
         # Use vertex colors from the mesh (for heatmap)
         vertex_colors = mesh_centered.visual.vertex_colors[:, :3] / 255.0
-        facecolors = vertex_colors[faces].mean(
-            axis=1)  # Average vertex colors per face
-        edgecolors = 'none'
+        facecolors = vertex_colors[faces].mean(axis=1)  # Average vertex colors per face
+        edgecolors = "none"
     else:
         # Use light gray with edge lines for better geometry visibility
         facecolors = (0.85, 0.85, 0.85)
@@ -54,7 +58,7 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
         facecolors=facecolors,
         edgecolors=edgecolors,
         linewidths=0.1,
-        alpha=1.0
+        alpha=1.0,
     )
     ax.add_collection3d(poly3d)
 
@@ -68,13 +72,13 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
     max_extent = np.max(extent)
     center = (bounds[0] + bounds[1]) / 2
 
-    ax.set_xlim(center[0] - max_extent/2, center[0] + max_extent/2)
-    ax.set_ylim(center[1] - max_extent/2, center[1] + max_extent/2)
-    ax.set_zlim(center[2] - max_extent/2, center[2] + max_extent/2)
+    ax.set_xlim(center[0] - max_extent / 2, center[0] + max_extent / 2)
+    ax.set_ylim(center[1] - max_extent / 2, center[1] + max_extent / 2)
+    ax.set_zlim(center[2] - max_extent / 2, center[2] + max_extent / 2)
 
     ax.set_axis_off()
-    ax.set_facecolor('white')
-    fig.patch.set_facecolor('white')
+    ax.set_facecolor("white")
+    fig.patch.set_facecolor("white")
 
     fig.tight_layout(pad=0)
     fig.canvas.draw()
@@ -98,25 +102,56 @@ def main():
     print("Loading mesh...")
     mesh = load_mesh(str(mesh_path))
     print(
-        f"Loaded mesh with {len(mesh.vertices):,} vertices and {len(mesh.faces):,} faces")
+        f"Loaded mesh with {len(mesh.vertices):,} vertices and {len(mesh.faces):,} faces"
+    )
 
-    print("\nTesting matplotlib rendering...")
+    print("\nTesting AI saliency extraction...")
     try:
-        img = render_comparison_view(mesh)
+        # Initialize AI components
+        saliency_extractor = SaliencyExtractor()
+        renderer = OffscreenRenderer(resolution=256)
+
+        # Render views for saliency extraction
+        print("Rendering views for AI saliency...")
+        views = renderer.render_views(mesh, num_views=6)
+
+        # Extract saliency maps
+        print("Extracting AI saliency maps...")
+        saliency_maps = saliency_extractor.extract_multi_view_saliency(views)
+
+        # Project saliency to vertices
+        print("Projecting saliency to mesh vertices...")
+        importance = project_importance_to_vertices(mesh, views, saliency_maps)
+
+        # Apply heatmap to mesh
+        print("Applying heatmap to mesh...")
+        mesh_with_heatmap = paint_importance_heatmap(mesh, importance, colormap="hot")
+
+        # Render with heatmap
+        print("Rendering with AI heatmap...")
+        img = render_comparison_view(mesh_with_heatmap, use_vertex_colors=True)
         print(f"✓ SUCCESS! Rendered image shape: {img.shape}")
         print(f"  Image dimensions: {img.shape[0]}x{img.shape[1]}")
         print(f"  Channels: {img.shape[2]}")
 
         # Save test image
-        output_path = Path("test_render.png")
+        output_path = Path("test_render_ai.png")
         plt.imsave(output_path, img)
-        print(f"\n✓ Test render saved to: {output_path}")
-        print("\nMatplotlib rendering works! Safe to run the full pipeline.")
+        print(f"\n✓ AI heatmap render saved to: {output_path}")
+
+        # Also save normal render for comparison
+        img_normal = render_comparison_view(mesh)
+        output_normal = Path("test_render_normal.png")
+        plt.imsave(output_normal, img_normal)
+        print(f"✓ Normal render saved to: {output_normal}")
+
+        print("\nAI saliency rendering works! Check if face is properly highlighted.")
 
     except Exception as e:
         print(f"\n✗ FAILED with error:")
         print(f"  {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
