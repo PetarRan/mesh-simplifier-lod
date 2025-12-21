@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-from visualization import mesh_to_plotly, mesh_with_colors
+from .visualization import mesh_to_plotly, mesh_with_colors
 
 
 def render_lod_comparison_tab(results):

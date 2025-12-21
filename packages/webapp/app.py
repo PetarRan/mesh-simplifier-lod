@@ -8,8 +8,12 @@ import streamlit as st
 import tempfile
 from pathlib import Path
 
-from utils import SimplificationPipeline
-from ui_components import render_lod_comparison_tab, render_heatmap_tab, render_metrics_tab
+from .utils import SimplificationPipeline
+from .ui_components import (
+    render_lod_comparison_tab,
+    render_heatmap_tab,
+    render_metrics_tab,
+)
 
 # page config
 st.set_page_config(
@@ -19,7 +23,8 @@ st.set_page_config(
 )
 
 # kind of sucks but CSS for better layout
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* Remove top padding */
     .block-container {
@@ -120,7 +125,9 @@ st.markdown("""
         margin-bottom: 0.3rem;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # init session state
 if "pipeline" not in st.session_state:
@@ -160,7 +167,8 @@ ratios = [ratio_1, ratio_2, ratio_3]
 
 # run button
 run_button = st.sidebar.button(
-    "generate lods", type="primary", disabled=uploaded_file is None)
+    "generate lods", type="primary", disabled=uploaded_file is None
+)
 
 # main area
 st.title("AI-Guided LOD Mesh Simplification")
@@ -171,7 +179,9 @@ if uploaded_file is None:
     st.stop()
 
 # save uploaded file
-with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
+with tempfile.NamedTemporaryFile(
+    delete=False, suffix=Path(uploaded_file.name).suffix
+) as tmp:
     tmp.write(uploaded_file.read())
     mesh_path = tmp.name
 
@@ -199,7 +209,8 @@ if run_button:
 
         # Run the pipeline (this blocks until done)
         results = st.session_state.pipeline.run(
-            mesh_path, ratios, alpha=alpha, use_ai=use_ai)
+            mesh_path, ratios, alpha=alpha, use_ai=use_ai
+        )
         st.session_state.results = results
 
         progress_bar.progress(100)
@@ -213,6 +224,7 @@ if run_button:
     finally:
         # Clear progress indicators
         import time
+
         time.sleep(1)
         progress_text.empty()
         progress_bar.empty()
