@@ -141,8 +141,15 @@ def create_axis_visualization(mesh_path, output_path):
 
 
 def main():
-    mesh_path = "test_meshes/bunny/reconstruction/bun_zipper.ply"
-    output_path = "test_meshes/compare/bunny_with_axes.png"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate 3D model with axes")
+    parser.add_argument("--mesh", required=True, help="Path to mesh file")
+    args = parser.parse_args()
+
+    mesh_path = args.mesh
+    mesh_name = Path(mesh_path).stem
+    output_path = f"output/{mesh_name}_compare/{mesh_name}_with_axes.png"
 
     if not Path(mesh_path).exists():
         print(f"Mesh not found: {mesh_path}")

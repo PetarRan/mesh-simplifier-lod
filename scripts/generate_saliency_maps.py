@@ -99,7 +99,9 @@ def create_saliency_visualization(mesh_path, output_path):
     print("Creating visualization...")
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     fig.suptitle(
-        "2D Vizuelna Značajnost (Saliency) iz Svakog Ugla", fontsize=16, fontweight="bold"
+        "2D Vizuelna Značajnost (Saliency) iz Svakog Ugla",
+        fontsize=16,
+        fontweight="bold",
     )
 
     angle_labels = ["Desna", "Prednja", "Leva", "Zadnja", "Donja", "Gornja"]
@@ -143,8 +145,15 @@ def create_saliency_visualization(mesh_path, output_path):
 
 
 def main():
-    mesh_path = "test_meshes/bunny/reconstruction/bun_zipper.ply"
-    output_path = "test_meshes/compare/saliency_maps.png"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate 2D saliency maps")
+    parser.add_argument("--mesh", required=True, help="Path to mesh file")
+    args = parser.parse_args()
+
+    mesh_path = args.mesh
+    mesh_name = Path(mesh_path).stem
+    output_path = f"output/{mesh_name}_compare/saliency_maps.png"
 
     if not Path(mesh_path).exists():
         print(f"Mesh not found: {mesh_path}")

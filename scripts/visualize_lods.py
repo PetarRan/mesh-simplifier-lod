@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """visualize lod levels side-by-side with technical stats"""
+
 import trimesh
 import pyrender
 import numpy as np
@@ -7,6 +8,9 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import os
+from pathlib import Path
+from scipy.spatial import cKDTree
+
 
 def render_mesh(mesh, resolution=800, importance=None):
     """render a single mesh view with optional importance heatmap"""
@@ -17,7 +21,7 @@ def render_mesh(mesh, resolution=800, importance=None):
     # setup scene with importance coloring if available
     if importance is not None:
         # create color map from importance values
-        cmap = plt.colormaps.get_cmap('plasma')
+        cmap = plt.colormaps.get_cmap("plasma")
         colors = cmap(importance)[:, :3]  # RGB only
         mesh_centered.visual.vertex_colors = (colors * 255).astype(np.uint8)
         mesh_pr = pyrender.Mesh.from_trimesh(mesh_centered, smooth=True)
@@ -44,12 +48,14 @@ def render_mesh(mesh, resolution=800, importance=None):
 
     # rotation around Y axis (25 degrees)
     angle = np.pi / 7.2
-    rotation_y = np.array([
-        [np.cos(angle), 0, -np.sin(angle), 0],
-        [0, 1, 0, 0],
-        [np.sin(angle), 0, np.cos(angle), 0],
-        [0, 0, 0, 1]
-    ])
+    rotation_y = np.array(
+        [
+            [np.cos(angle), 0, -np.sin(angle), 0],
+            [0, 1, 0, 0],
+            [np.sin(angle), 0, np.cos(angle), 0],
+            [0, 0, 0, 1],
+        ]
+    )
 
     # base pose (camera closer = bigger mesh)
     base_pose = np.eye(4)
@@ -65,6 +71,7 @@ def render_mesh(mesh, resolution=800, importance=None):
 
     return color
 
+
 def add_technical_overlay(image, stats):
     """add technical stats overlay"""
     img = Image.fromarray(image)
@@ -79,7 +86,7 @@ def add_technical_overlay(image, stats):
         title_font = stats_font = small_font = ImageFont.load_default()
 
     # semi-transparent background for text
-    overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
 
     # top banner
@@ -88,18 +95,21 @@ def add_technical_overlay(image, stats):
 
     # bottom stats panel
     panel_height = 160
-    overlay_draw.rectangle([(0, img.height - panel_height), (img.width, img.height)],
-                          fill=(0, 0, 0, 200))
+    overlay_draw.rectangle(
+        [(0, img.height - panel_height), (img.width, img.height)], fill=(0, 0, 0, 200)
+    )
 
     # composite overlay
-    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     # title at top
     title = f"LOD{stats['level']}"
     bbox = draw.textbbox((0, 0), title, font=title_font)
     title_width = bbox[2] - bbox[0]
-    draw.text(((img.width - title_width) // 2, 20), title, font=title_font, fill=(0, 255, 255))
+    draw.text(
+        ((img.width - title_width) // 2, 20), title, font=title_font, fill=(0, 255, 255)
+    )
 
     # stats at bottom
     y = img.height - panel_height + 15
@@ -117,7 +127,7 @@ def add_technical_overlay(image, stats):
         draw.text((20, y + i * line_spacing), line, font=stats_font, fill=(0, 255, 100))
 
     # add percentage badge
-    if stats['level'] > 0:
+    if stats["level"] > 0:
         badge_text = f"{stats['percentage']:.0f}%"
         badge_bbox = draw.textbbox((0, 0), badge_text, font=title_font)
         badge_width = badge_bbox[2] - badge_bbox[0]
@@ -126,10 +136,11 @@ def add_technical_overlay(image, stats):
 
     return np.array(img)
 
+
 def create_colorbar(height=800, width=60):
     """create a vertical colorbar for importance visualization"""
     colorbar = np.zeros((height, width, 3), dtype=np.uint8)
-    cmap = plt.colormaps.get_cmap('plasma')
+    cmap = plt.colormaps.get_cmap("plasma")
 
     for i in range(height):
         value = 1.0 - (i / height)  # top = high importance
@@ -151,8 +162,16 @@ def create_colorbar(height=800, width=60):
 
     return np.array(img)
 
+
 def main():
-    output_dir = "test_meshes/output"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Visualize LOD levels")
+    parser.add_argument("--mesh", required=True, help="Path to mesh file")
+    args = parser.parse_args()
+
+    mesh_name = Path(args.mesh).stem
+    output_dir = f"output/{mesh_name}_test"
 
     print("🔍 analyzing LOD meshes...")
 
@@ -184,13 +203,13 @@ def main():
 
         # calculate stats
         stats = {
-            'level': i,
-            'faces': len(mesh.faces),
-            'vertices': len(mesh.vertices),
-            'edges': len(mesh.edges_unique),
-            'tri_per_vert': len(mesh.faces) / len(mesh.vertices),
-            'reduction': (1 - len(mesh.faces) / len(original_mesh.faces)) * 100,
-            'percentage': (len(mesh.faces) / len(original_mesh.faces)) * 100
+            "level": i,
+            "faces": len(mesh.faces),
+            "vertices": len(mesh.vertices),
+            "edges": len(mesh.edges_unique),
+            "tri_per_vert": len(mesh.faces) / len(mesh.vertices),
+            "reduction": (1 - len(mesh.faces) / len(original_mesh.faces)) * 100,
+            "percentage": (len(mesh.faces) / len(original_mesh.faces)) * 100,
         }
 
         img_labeled = add_technical_overlay(img, stats)
@@ -201,7 +220,7 @@ def main():
     combined = np.zeros((resolution, total_width, 3), dtype=np.uint8)
 
     for i, render in enumerate(renders):
-        combined[:, i * resolution:(i + 1) * resolution] = render
+        combined[:, i * resolution : (i + 1) * resolution] = render
 
     output_path = f"{output_dir}/lod_comparison.png"
     Image.fromarray(combined).save(output_path)
@@ -224,6 +243,7 @@ def main():
             else:
                 # for simplified meshes, map original importance to new vertices
                 from scipy.spatial import cKDTree
+
                 tree = cKDTree(original_mesh.vertices)
                 _, indices = tree.query(mesh.vertices)
                 mesh_importance = importance[indices]
@@ -231,13 +251,13 @@ def main():
             img = render_mesh(mesh, resolution, importance=mesh_importance)
 
             stats = {
-                'level': i,
-                'faces': len(mesh.faces),
-                'vertices': len(mesh.vertices),
-                'edges': len(mesh.edges_unique),
-                'tri_per_vert': len(mesh.faces) / len(mesh.vertices),
-                'reduction': (1 - len(mesh.faces) / len(original_mesh.faces)) * 100,
-                'percentage': (len(mesh.faces) / len(original_mesh.faces)) * 100
+                "level": i,
+                "faces": len(mesh.faces),
+                "vertices": len(mesh.vertices),
+                "edges": len(mesh.edges_unique),
+                "tri_per_vert": len(mesh.faces) / len(mesh.vertices),
+                "reduction": (1 - len(mesh.faces) / len(original_mesh.faces)) * 100,
+                "percentage": (len(mesh.faces) / len(original_mesh.faces)) * 100,
             }
 
             img_labeled = add_technical_overlay(img, stats)
@@ -251,7 +271,7 @@ def main():
         combined_heatmap = np.ones((resolution, total_width, 3), dtype=np.uint8) * 40
 
         for i, render in enumerate(heatmap_renders):
-            combined_heatmap[:, i * resolution:(i + 1) * resolution] = render
+            combined_heatmap[:, i * resolution : (i + 1) * resolution] = render
 
         # add colorbar on right
         combined_heatmap[:, -80:] = colorbar
@@ -279,6 +299,7 @@ def main():
         print(f"  {individual_path}")
 
     print(f"\n✨ visualization complete!")
+
 
 if __name__ == "__main__":
     main()

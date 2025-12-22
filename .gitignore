@@ -47,6 +47,7 @@ lods/
 # models cache
 .cache/
 transformers_cache/
+.ruff_cache
 
 # os
 .DS_Store

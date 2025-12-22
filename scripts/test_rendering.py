@@ -3,6 +3,11 @@
 Quick test of matplotlib rendering to verify it works before running full pipeline
 """
 
+from visualization.heatmap import paint_importance_heatmap
+from ai_importance.projection import project_importance_to_vertices
+from rendering import OffscreenRenderer
+from ai_importance import SaliencyExtractor
+from preprocessing import load_mesh
 import sys
 from pathlib import Path
 import numpy as np
@@ -16,25 +21,144 @@ matplotlib.use("Agg")
 # Add packages to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "core"))
 
-from preprocessing import load_mesh
-from ai_importance import SaliencyExtractor
-from rendering import OffscreenRenderer
-from ai_importance.projection import project_importance_to_vertices
-from visualization.heatmap import paint_importance_heatmap
+
+def compute_geometric_importance(mesh):
+    """Create importance based on geometric features (curvature, edges, etc.)"""
+    vertices = mesh.vertices
+    faces = mesh.faces
+
+    # Compute vertex curvature (approximate using angle between adjacent faces)
+    vertex_curvature = np.zeros(len(vertices))
+
+    # For each vertex, compute average normal deviation
+    for i in range(len(vertices)):
+        # Find faces containing this vertex
+        vertex_faces = [j for j, face in enumerate(faces) if i in face]
+
+        if len(vertex_faces) >= 2:
+            # Compute face normals
+            normals = []
+            for face_idx in vertex_faces:
+                v0, v1, v2 = faces[face_idx]
+                edge1 = vertices[v1] - vertices[v0]
+                edge2 = vertices[v2] - vertices[v0]
+                normal = np.cross(edge1, edge2)
+                normal = normal / (np.linalg.norm(normal) + 1e-8)
+                normals.append(normal)
+
+            # Compute curvature as variance of normals
+            if len(normals) > 1:
+                normals = np.array(normals)
+                mean_normal = np.mean(normals, axis=0)
+                mean_normal = mean_normal / (np.linalg.norm(mean_normal) + 1e-8)
+                curvature = np.mean([1 - np.dot(n, mean_normal) for n in normals])
+                vertex_curvature[i] = curvature
+
+    # Edge detection - vertices on sharp edges get higher importance
+    edge_importance = np.zeros(len(vertices))
+    for face in faces:
+        for i in range(3):
+            v1, v2 = face[i], face[(i + 1) % 3]
+            edge_length = np.linalg.norm(vertices[v1] - vertices[v2])
+            # Longer edges might be more important
+            edge_importance[v1] += edge_length
+            edge_importance[v2] += edge_length
+
+    # Combine features
+    curvature_normalized = vertex_curvature / (vertex_curvature.max() + 1e-8)
+    edge_normalized = edge_importance / (edge_importance.max() + 1e-8)
+
+    # Distance from center (outer features often important)
+    center = np.mean(vertices, axis=0)
+    distances = np.linalg.norm(vertices - center, axis=1)
+    distance_normalized = distances / (distances.max() + 1e-8)
+
+    # Weighted combination
+    geometric_importance = (
+        0.4 * curvature_normalized + 0.3 * edge_normalized + 0.3 * distance_normalized
+    )
+
+    return geometric_importance
 
 
-def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
-    """Same rendering function from compare_ai_vs_standard.py"""
+def simple_orient_mesh(mesh):
+    """Simple orientation that works for most common mesh files"""
     mesh_centered = mesh.copy()
     mesh_centered.vertices -= mesh_centered.centroid
 
-    # Rotate bunny to stand upright - swap Y and Z, then adjust orientation
-    vertices_rotated = mesh_centered.vertices.copy()
-    # Swap Y and Z to make bunny stand up
-    temp = vertices_rotated[:, 1].copy()
-    vertices_rotated[:, 1] = vertices_rotated[:, 2]
-    vertices_rotated[:, 2] = temp  # Negative to get correct orientation
-    mesh_centered.vertices = vertices_rotated
+    vertices = mesh_centered.vertices
+
+    # Try different common orientations and pick the one that looks most reasonable
+    # We'll check which orientation puts most vertices in the upper half of Y (standing upright)
+    orientations = []
+
+    # Option 1: Original orientation
+    orientations.append(vertices.copy())
+
+    # Option 2: Swap Y and Z (common for many mesh formats)
+    vertices_yz = vertices.copy()
+    temp = vertices_yz[:, 1].copy()
+    vertices_yz[:, 1] = vertices_yz[:, 2]
+    vertices_yz[:, 2] = temp
+    orientations.append(vertices_yz)
+
+    # Option 3: Swap Y and -Z (another common variant)
+    vertices_ynegz = vertices.copy()
+    temp = vertices_ynegz[:, 1].copy()
+    vertices_ynegz[:, 1] = -vertices_ynegz[:, 2]
+    vertices_ynegz[:, 2] = temp
+    orientations.append(vertices_ynegz)
+
+    # Option 4: Original but flipped horizontally (for backwards models)
+    vertices_flip = vertices.copy()
+    vertices_flip[:, 0] = -vertices_flip[:, 0]
+    orientations.append(vertices_flip)
+
+    # Score each orientation based on how "upright" it is
+    # Good orientation: most vertices should have positive Y (above ground)
+    # and the model should extend more in X than in Z depth (facing forward)
+    best_score = -float("inf")
+    best_orientation = 0
+
+    for i, oriented_vertices in enumerate(orientations):
+        # Score 1: How many vertices are above ground (Y > 0)
+        above_ground_ratio = np.sum(oriented_vertices[:, 1] > 0) / len(
+            oriented_vertices
+        )
+
+        # Score 2: Width vs depth ratio (model should be wider than deep)
+        width = oriented_vertices[:, 0].max() - oriented_vertices[:, 0].min()
+        depth = oriented_vertices[:, 2].max() - oriented_vertices[:, 2].min()
+        width_depth_ratio = width / (depth + 1e-6)  # Avoid division by zero
+
+        # Combined score
+        score = above_ground_ratio * 0.7 + min(width_depth_ratio, 2.0) * 0.3
+
+        if score > best_score:
+            best_score = score
+            best_orientation = i
+
+    # Apply the best orientation
+    mesh_centered.vertices = orientations[best_orientation]
+
+    # Additional rotation to pitch the model forward (look ahead instead of down)
+    # This rotates around X axis to lift the "chin" up
+    angle_x = np.pi / 2  # +90 degrees (positive = look down)
+    cos_x = np.cos(angle_x)
+    sin_x = np.sin(angle_x)
+
+    rotation_x = np.array([[1, 0, 0], [0, cos_x, -sin_x], [0, sin_x, cos_x]])
+
+    # Apply the pitch rotation
+    vertices = mesh_centered.vertices
+    mesh_centered.vertices = vertices @ rotation_x.T
+
+    return mesh_centered
+
+
+def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
+    """Auto-oriented rendering function that works for any mesh"""
+    mesh_centered = simple_orient_mesh(mesh)
 
     fig = plt.figure(figsize=(resolution / 100, resolution / 100), dpi=100)
     ax = fig.add_subplot(111, projection="3d")
@@ -93,11 +217,18 @@ def render_comparison_view(mesh, resolution=800, use_vertex_colors=False):
 
 
 def main():
-    mesh_path = Path("test_meshes/bunny/reconstruction/bun_zipper.ply")
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Test rendering with AI")
+    parser.add_argument("--mesh", required=True, help="Path to mesh file")
+    args = parser.parse_args()
+
+    mesh_path = Path(args.mesh)
+    mesh_name = mesh_path.stem
+    output_path = f"output/{mesh_name}_test/test.png"
 
     if not mesh_path.exists():
         print(f"Error: Mesh not found at {mesh_path}")
-        return
 
     print("Loading mesh...")
     mesh = load_mesh(str(mesh_path))
@@ -123,6 +254,81 @@ def main():
         print("Projecting saliency to mesh vertices...")
         importance = project_importance_to_vertices(mesh, views, saliency_maps)
 
+        # Debug: Check importance values
+        print(f"Importance stats:")
+        print(f"  Min: {importance.min():.6f}")
+        print(f"  Max: {importance.max():.6f}")
+        print(f"  Mean: {importance.mean():.6f}")
+        print(f"  Std: {importance.std():.6f}")
+        print(
+            f"  Non-zero: {(importance > 0).sum()}/{len(importance)} ({(importance > 0).sum() / len(importance) * 100:.1f}%)"
+        )
+
+        # If importance is very sparse (<5% non-zero), expand importance to nearby vertices
+        nonzero_ratio = (importance > 0).sum() / len(importance)
+        if nonzero_ratio < 0.05:
+            print(
+                f"  Sparse importance detected ({nonzero_ratio * 100:.1f}% non-zero), expanding to nearby vertices..."
+            )
+
+            # Create distance-weighted importance for zero-valued vertices
+            from scipy.spatial import cKDTree
+
+            tree = cKDTree(mesh.vertices)
+
+            # For each zero-valued vertex, find importance from nearest important vertices
+            expanded_importance = importance.copy()
+            zero_mask = importance == 0
+
+            if zero_mask.any():
+                # Query nearest neighbors for zero-valued vertices
+                distances, indices = tree.query(mesh.vertices[zero_mask], k=10)
+
+                for i, (dists, idxs) in enumerate(zip(distances, indices)):
+                    zero_idx = np.where(zero_mask)[0][i]
+                    # Weight by inverse distance, only consider important neighbors
+                    weights = 1.0 / (dists + 1e-6)
+                    neighbor_importance = importance[idxs]
+
+                    # Only weight neighbors that have importance
+                    mask = neighbor_importance > 0
+                    if mask.any():
+                        expanded_importance[zero_idx] = np.sum(
+                            weights[mask] * neighbor_importance[mask]
+                        ) / np.sum(weights[mask])
+
+            importance = expanded_importance
+            new_nonzero = (importance > 0).sum() / len(importance) * 100
+            print(f"  After expansion: {new_nonzero:.1f}% non-zero")
+
+        # Normalize final importance values
+        # If importance is still too sparse after expansion (<10%), use geometric fallback
+        final_nonzero = (importance > 0).sum() / len(importance)
+        if final_nonzero < 0.10:
+            print(
+                f"  AI saliency still sparse ({final_nonzero * 100:.1f}%), using geometric fallback..."
+            )
+
+            # Create geometric importance based on curvature and features
+            geometric_importance = compute_geometric_importance(mesh)
+
+            # Blend AI importance (where it exists) with geometric importance
+            blend_weight = 0.3  # Give some weight to AI where it detected something
+            importance = np.maximum(
+                importance, geometric_importance * (1 - blend_weight)
+            )
+
+            final_nonzero = (importance > 0).sum() / len(importance)
+            print(f"  Geometric blend resulted in {final_nonzero * 100:.1f}% non-zero")
+
+        if importance.max() > importance.min():
+            importance = (importance - importance.min()) / (
+                importance.max() - importance.min()
+            )
+            print(
+                f"  Final normalized range: {importance.min():.3f} to {importance.max():.3f}"
+            )
+
         # Apply heatmap to mesh
         print("Applying heatmap to mesh...")
         mesh_with_heatmap = paint_importance_heatmap(mesh, importance, colormap="hot")
@@ -135,13 +341,15 @@ def main():
         print(f"  Channels: {img.shape[2]}")
 
         # Save test image
-        output_path = Path("test_render_ai.png")
+        output_dir = Path(f"output/{mesh_name}_test")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / "test_render_ai.png"
         plt.imsave(output_path, img)
         print(f"\n✓ AI heatmap render saved to: {output_path}")
 
         # Also save normal render for comparison
         img_normal = render_comparison_view(mesh)
-        output_normal = Path("test_render_normal.png")
+        output_normal = output_dir / f"{mesh_name}_normal.png"
         plt.imsave(output_normal, img_normal)
         print(f"✓ Normal render saved to: {output_normal}")
 

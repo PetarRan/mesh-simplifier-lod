@@ -22,18 +22,84 @@ from rendering import OffscreenRenderer
 from preprocessing import load_mesh
 
 
-def render_comparison_view(mesh, resolution=800, use_wireframe=False):
-    """Render mesh - copied from working comparison script"""
+def simple_orient_mesh(mesh):
+    """Simple orientation that works for most common mesh files"""
     mesh_centered = mesh.copy()
     mesh_centered.vertices -= mesh_centered.centroid
 
-    # Rotate bunny to stand upright - swap Y and Z, then adjust orientation
-    vertices_rotated = mesh_centered.vertices.copy()
-    # Swap Y and Z to make bunny stand up
-    temp = vertices_rotated[:, 1].copy()
-    vertices_rotated[:, 1] = vertices_rotated[:, 2]
-    vertices_rotated[:, 2] = temp
-    mesh_centered.vertices = vertices_rotated
+    vertices = mesh_centered.vertices
+
+    # Try different common orientations and pick the one that looks most reasonable
+    # We'll check which orientation puts most vertices in the upper half of Y (standing upright)
+    orientations = []
+
+    # Option 1: Original orientation
+    orientations.append(vertices.copy())
+
+    # Option 2: Swap Y and Z (common for many mesh formats)
+    vertices_yz = vertices.copy()
+    temp = vertices_yz[:, 1].copy()
+    vertices_yz[:, 1] = vertices_yz[:, 2]
+    vertices_yz[:, 2] = temp
+    orientations.append(vertices_yz)
+
+    # Option 3: Swap Y and -Z (another common variant)
+    vertices_ynegz = vertices.copy()
+    temp = vertices_ynegz[:, 1].copy()
+    vertices_ynegz[:, 1] = -vertices_ynegz[:, 2]
+    vertices_ynegz[:, 2] = temp
+    orientations.append(vertices_ynegz)
+
+    # Option 4: Original but flipped horizontally (for backwards models)
+    vertices_flip = vertices.copy()
+    vertices_flip[:, 0] = -vertices_flip[:, 0]
+    orientations.append(vertices_flip)
+
+    # Score each orientation based on how "upright" it is
+    # Good orientation: most vertices should have positive Y (above ground)
+    # and the model should extend more in X than in Z depth (facing forward)
+    best_score = -float("inf")
+    best_orientation = 0
+
+    for i, oriented_vertices in enumerate(orientations):
+        # Score 1: How many vertices are above ground (Y > 0)
+        above_ground_ratio = np.sum(oriented_vertices[:, 1] > 0) / len(
+            oriented_vertices
+        )
+
+        # Score 2: Width vs depth ratio (model should be wider than deep)
+        width = oriented_vertices[:, 0].max() - oriented_vertices[:, 0].min()
+        depth = oriented_vertices[:, 2].max() - oriented_vertices[:, 2].min()
+        width_depth_ratio = width / (depth + 1e-6)  # Avoid division by zero
+
+        # Combined score
+        score = above_ground_ratio * 0.7 + min(width_depth_ratio, 2.0) * 0.3
+
+        if score > best_score:
+            best_score = score
+            best_orientation = i
+
+    # Apply the best orientation
+    mesh_centered.vertices = orientations[best_orientation]
+
+    # Additional rotation to pitch the model forward (look ahead instead of down)
+    # This rotates around X axis to lift the "chin" up
+    angle_x = np.pi / 2  # +90 degrees (positive = look down)
+    cos_x = np.cos(angle_x)
+    sin_x = np.sin(angle_x)
+
+    rotation_x = np.array([[1, 0, 0], [0, cos_x, -sin_x], [0, sin_x, cos_x]])
+
+    # Apply the pitch rotation
+    vertices = mesh_centered.vertices
+    mesh_centered.vertices = vertices @ rotation_x.T
+
+    return mesh_centered
+
+
+def render_comparison_view(mesh, resolution=800, use_wireframe=False):
+    """Render mesh - copied from working comparison script"""
+    mesh_centered = simple_orient_mesh(mesh)
 
     # Create figure for this mesh
     fig = plt.figure(figsize=(resolution / 100, resolution / 100), dpi=100)
@@ -112,7 +178,7 @@ def main():
     mesh_path = args.mesh
     mesh_name = Path(mesh_path).stem
 
-    output_path = f"test_meshes/compare/{mesh_name}_comparison.png"
+    output_path = f"output/{mesh_name}_compare/{mesh_name}_comparison.png"
 
     if not Path(mesh_path).exists():
         print(f"Mesh not found: {mesh_path}")
