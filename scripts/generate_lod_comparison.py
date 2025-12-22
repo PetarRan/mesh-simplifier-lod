@@ -103,9 +103,16 @@ def render_comparison_view(mesh, resolution=800, use_wireframe=False):
 
 def main():
     """Generate comparison image"""
-    # Use the existing bunny mesh
-    mesh_path = "test_meshes/bunny/reconstruction/bun_zipper.ply"
-    output_path = "test_meshes/compare/lod_comparison.png"
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate LOD comparison image")
+    parser.add_argument("--mesh", required=True, help="Path to mesh file")
+    args = parser.parse_args()
+
+    mesh_path = args.mesh
+    mesh_name = Path(mesh_path).stem
+
+    output_path = f"test_meshes/compare/{mesh_name}_comparison.png"
 
     if not Path(mesh_path).exists():
         print(f"Mesh not found: {mesh_path}")
@@ -198,6 +205,8 @@ def main():
     # Save
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(np.array(pil_img)).save(output_path)
+
+    print(f"Saved comparison to: {output_path}")
 
     print(f"Saved comparison to: {output_path}")
     print(f"Original: {original_faces:,} faces")
