@@ -8,8 +8,13 @@ import streamlit as st
 import tempfile
 from pathlib import Path
 
-from .utils import SimplificationPipeline
-from .ui_components import (
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from packages.webapp.utils import SimplificationPipeline
+from packages.webapp.ui_components import (
     render_lod_comparison_tab,
     render_heatmap_tab,
     render_metrics_tab,

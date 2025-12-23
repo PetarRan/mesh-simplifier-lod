@@ -10,3 +10,11 @@ target-version = ['py39']
 
 [tool.isort]
 profile = "black"
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.9.4",
+    "pillow>=11.3.0",
+    "pyrender>=0.1.45",
+    "trimesh>=4.10.0",
+]
